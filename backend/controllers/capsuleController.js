@@ -1,84 +1,61 @@
 const Capsule = require('../models/Capsule');
-const crypto = require('crypto');
-const fs = require('fs');
+const Email = require('../models/Email');
+const nodemailer = require('nodemailer');
 const cron = require('node-cron');
-const { sendEmail } = require('../config/email');
 
-const scheduledJobs = {};
+// Nodemailer transporter setup
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
 
-const scheduleEmail = (capsule) => {
-    const unlockDate = new Date(capsule.unlockDate);
-    const cronExpression = `${unlockDate.getUTCMinutes()} ${unlockDate.getUTCHours()} ${unlockDate.getUTCDate()} ${unlockDate.getUTCMonth() + 1} *`;
-
-    if (scheduledJobs[capsule._id]) scheduledJobs[capsule._id].stop();
-
-    scheduledJobs[capsule._id] = cron.schedule(cronExpression, async () => {
-        await sendEmail(
-            capsule.recipientEmail,
-            "Your Time Capsule is Ready! 🎉",
-            `Hello! Your capsule "${capsule.title}" has been unlocked today.`
-        );
-
-        delete scheduledJobs[capsule._id];
-    });
-};
-
+// Create capsule controller
 exports.createCapsule = async (req, res) => {
     try {
-        const { title, unlockDate, recipientEmail } = req.body;
+        const { email, date } = req.body;
 
-        const imageBuffer = fs.readFileSync(req.file.path);
-        const imageHash = crypto.createHash('sha256').update(imageBuffer).digest('hex');
+        // Create a new capsule
+        const newCapsule = new Capsule({ email, date });
+        await newCapsule.save();
 
-        const capsule = new Capsule({ title, contributors: [req.user.id], imageHash, unlockDate, recipientEmail });
+        // Save email to be sent later
+        const newEmail = new Email({ email, date });
+        await newEmail.save();
 
-        await capsule.save();
-        scheduleEmail(capsule);
-
-        res.status(201).json({ message: "Capsule created & email scheduled!" });
-
-    } catch (err) {
-        res.status(500).json({ message: err.message });
+        res.status(201).json({ message: 'Capsule created successfully!' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error creating capsule', error });
     }
 };
 
-exports.scheduleCapsule = async (req, res) => {
-    // Define the scheduleCapsule function
-    // This function should handle scheduling the capsule
-    // For example, you can use the scheduleEmail function here
-    try {
-        const { capsuleId } = req.body;
-        const capsule = await Capsule.findById(capsuleId);
+// Cron job to send scheduled emails
+cron.schedule('* * * * *', async () => { // Runs every minute
+    const now = new Date();
+    const formattedTime = now.toTimeString().split(' ')[0].slice(0, 5); // "HH:MM"
+    // console.log(formattedTime);
+    console.log('Checking emails for:', formattedTime);
 
-        if (!capsule) {
-            return res.status(404).json({ message: "Capsule not found" });
+    const emails = await Email.find({ date: formattedTime }); // Match only by time
+    console.log('Found emails:', emails);
+
+    emails.forEach(async ({ email }) => {
+        try {
+            await transporter.sendMail({
+                from: process.env.EMAIL_USER,
+                to: email,
+                subject: 'Scheduled Email',
+                text: `This is your scheduled email at ${formattedTime}!`
+            });
+
+            console.log(`Email sent to: ${email}`);
+
+            // Remove the email from DB after sending
+            await Email.deleteOne({ email, date: formattedTime });
+        } catch (error) {
+            console.error('Error sending email:', error);
         }
-
-        scheduleEmail(capsule);
-
-        res.status(200).json({ message: "Capsule scheduled successfully" });
-    } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
-};
-
-exports.contributeToCapsule = async (req, res) => {
-    // Define the contributeToCapsule function
-    // This function should handle contributions to the capsule
-    try {
-        const { capsuleId, contribution } = req.body;
-        const capsule = await Capsule.findById(capsuleId);
-
-        if (!capsule) {
-            return res.status(404).json({ message: "Capsule not found" });
-        }
-
-        capsule.contributors.push(req.user.id);
-        capsule.contributions.push(contribution);
-        await capsule.save();
-
-        res.status(200).json({ message: "Contribution added successfully" });
-    } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
-};
+    });
+});

@@ -13,8 +13,9 @@ const upload = multer({ dest: 'uploads/' });
 router.use(cookieParser());
 
 // Capsule Routes
-router.post('/create', authenticate, upload.single('image'), createCapsule);
-router.post('/schedule', authenticate, scheduleCapsule);
-router.post('/contribute', authenticate, contributeToCapsule);
+router.post('/create', authenticate, createCapsule); 
+// upload.single('image')
+// router.post('/schedule', authenticate, scheduleCapsule);
+// router.post('/contribute', authenticate, contributeToCapsule);
 
 module.exports = router;
