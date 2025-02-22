@@ -11,50 +11,82 @@ const generateToken = (user) => {
 };
 
 // **Signup with OTP**
+// const bcrypt = require('bcrypt');
+// const User = require('../models/User');
+// const OTP = require('../models/OTP');
+// const sendEmail = require('../utils/sendEmail');  // Assumes a function to send emails
+
+// Generate OTP
+// const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+// **Signup - Store OTP and Hashed Password Temporarily**
 exports.signup = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { email, password, firstName, lastName } = req.body;
 
+        // ✅ Check if user already exists
         let existingUser = await User.findOne({ email });
         if (existingUser) return res.status(400).json({ message: "User already exists" });
 
         const hashedPassword = await bcrypt.hash(password, 10);
         const otp = generateOTP();
 
-        await OTP.create({ email, otp, expiresAt: Date.now() + 300000 }); // OTP expires in 5 min
+        // ✅ Delete any existing OTP for this email before creating a new one
+        await OTP.deleteOne({ email });
+
+        // ✅ Store OTP along with user details (without creating User yet)
+        await OTP.create({
+            email,
+            otp,
+            hashedPassword,
+            firstName,
+            lastName,
+            expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
+        });
 
         await sendEmail(email, "Verify Your Account", `Your OTP is ${otp}. It expires in 5 minutes.`);
 
-        const newUser = new User({ email, password: hashedPassword });
-        await newUser.save();
-
-        res.status(201).json({ message: "User registered. OTP sent to email." });
+        res.status(201).json({ message: "OTP sent to email. Verify to complete registration." });
 
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
 
-// **Verify OTP**
+// **🔹 Verify OTP - Create User After Successful Verification**
 exports.verifyOTP = async (req, res) => {
     try {
         const { email, otp } = req.body;
+
+        // ✅ Check if OTP exists
         const storedOTP = await OTP.findOne({ email });
+        if (!storedOTP) return res.status(400).json({ message: "OTP not found. Please sign up again." });
 
-        if (!storedOTP || storedOTP.otp !== otp || storedOTP.expiresAt < Date.now()) {
-            return res.status(400).json({ message: "Invalid or expired OTP" });
-        }
+        // ✅ Validate OTP and check expiry
+        if (storedOTP.otp !== otp) return res.status(400).json({ message: "Invalid OTP" });
+        if (storedOTP.expiresAt < Date.now()) return res.status(400).json({ message: "OTP expired. Please sign up again." });
 
-        await User.findOneAndUpdate({ email }, { isVerified: true });
-        await OTP.deleteOne({ email }); // Remove OTP after successful verification
+        // ✅ Create User ONLY AFTER OTP is Verified
+        const newUser = new User({
+            email,
+            password: storedOTP.hashedPassword,
+            firstName: storedOTP.firstName,
+            lastName: storedOTP.lastName,
+            isVerified: true
+        });
 
-        res.status(200).json({ message: "Account verified. You can now log in." });
+        await newUser.save();
+        await OTP.deleteOne({ email }); // ✅ Remove OTP after successful verification
+
+        // ✅ Generate JWT Token after successful registration
+        const token = generateToken(newUser);
+
+        res.status(200).json({ message: "Account verified and registered. You can now log in.", token });
 
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
-
 // **Login**
 exports.login = async (req, res) => {
     try {
@@ -68,7 +100,10 @@ exports.login = async (req, res) => {
         if (!isMatch) return res.status(400).json({ message: "Incorrect password" });
 
         const token = generateToken(user);
-        res.status(200).json({ message: "Login successful", token });
+
+        // Send token in cookies
+        res.cookie('token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' });
+        res.status(200).json({ message: "Login successful" });
 
     } catch (err) {
         res.status(500).json({ message: err.message });
