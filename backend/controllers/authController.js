@@ -22,7 +22,7 @@ const generateToken = (user) => {
 // **Signup - Store OTP and Hashed Password Temporarily**
 exports.signup = async (req, res) => {
     try {
-        const { email, password, firstName, lastName } = req.body;
+        const { email, password, Name} = req.body;
 
         // ✅ Check if user already exists
         let existingUser = await User.findOne({ email });
@@ -39,8 +39,7 @@ exports.signup = async (req, res) => {
             email,
             otp,
             hashedPassword,
-            firstName,
-            lastName,
+            Name,
             expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
         });
 
@@ -70,8 +69,7 @@ exports.verifyOTP = async (req, res) => {
         const newUser = new User({
             email,
             password: storedOTP.hashedPassword,
-            firstName: storedOTP.firstName,
-            lastName: storedOTP.lastName,
+            Name: storedOTP.Name,
             isVerified: true
         });
 
