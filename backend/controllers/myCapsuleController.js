@@ -70,7 +70,7 @@ exports.createCapsule = async (req, res) => {
 exports.getAllCapsules = async (req, res) => {
     try {
         // console.log("User ID from Token:", req.user.id); // Debugging step
-        const capsules = await MyCapsule.find({ user: req.user.id });
+        const capsules = await MyCapsule.find({ user: req.user.id }).populate('user', 'name email').exec();
 
         // console.log("Capsules Found:", capsules); // Debugging step
 
