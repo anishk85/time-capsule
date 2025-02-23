@@ -13,12 +13,12 @@ const app = express();
 
 app.use(express.json());
 app.use(cookieParser());
-// app.use(
-//     cors({
-//       origin: "http://localhost:3000", // Allow frontend URL
-//       credentials: true, // If using cookies or authentication
-//     })
-//   );
+app.use(
+    cors({
+      origin: "https://time-capsule-gray.vercel.app/", // Allow frontend URL
+      credentials: true, // If using cookies or authentication
+    })
+  );
   
 
 // Routes
