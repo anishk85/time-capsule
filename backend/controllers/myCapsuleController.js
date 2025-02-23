@@ -1,7 +1,7 @@
 const MyCapsule = require("../models/myCapsule");
 const User = require("../models/User"); // Assuming there's a User model
 const cloudinary = require("../config/cloudinary");
-const { spawn } = require("child_process");
+const axios = require("axios");
 const Email = require("../models/Email");
 
 // Create Capsule
@@ -23,43 +23,36 @@ exports.createCapsule = async (req, res) => {
             imageUrl = uploadResult.secure_url;
         }
 
-        console.log("🚀 Running Sentiment Analysis...");
+        console.log("🚀 Calling Sentiment Analysis API...");
 
-        const pythonProcess = spawn("python", ["ml/sentiment_analysis.py", title, message]);
+        try {
+            const response = await axios.post("https://time-capsule-fastapi-1.onrender.com/analyze", {
+                title: title,
+                message: message
+            });
 
-        let resultData = "";
+            const result = response.data;
 
-        // Collect Python output
-        pythonProcess.stdout.on("data", (data) => {
-            resultData += data.toString();
-        });
-
-        pythonProcess.on("close", async (code) => {
-            console.log(`✅ Python process exited with code ${code}`);
-
-            try {
-                const result = JSON.parse(resultData);
-
-                if (result.error) {
-                    return res.status(500).json({ message: "Error running sentiment analysis", error: result.error });
-                }
-
-                // Store detected sentiment tags
-                const tags = [result.title, result.message];
-
-                // Save Capsule linked to user
-                const newCapsule = new MyCapsule({ user: userId, title, message, date, imageUrl, tags });
-                const savedCapsule = await newCapsule.save();
-
-                // Save email entry
-                const newEmail = new Email({ email: req.user.email, date });
-                await newEmail.save();
-
-                res.status(201).json(savedCapsule);
-            } catch (jsonError) {
-                res.status(500).json({ message: "Error processing sentiment analysis output." });
+            if (result.error) {
+                return res.status(500).json({ message: "Error running sentiment analysis", error: result.error });
             }
-        });
+
+            // Store detected sentiment tags
+            const tags = [result.title, result.message];
+
+            // Save Capsule linked to user
+            const newCapsule = new MyCapsule({ user: userId, title, message, date, imageUrl, tags });
+            const savedCapsule = await newCapsule.save();
+
+            // Save email entry
+            const newEmail = new Email({ email: req.user.email, date });
+            await newEmail.save();
+
+            res.status(201).json(savedCapsule);
+        } catch (apiError) {
+            console.error("Error calling sentiment analysis API:", apiError);
+            res.status(500).json({ message: "Error calling sentiment analysis API", error: apiError.message });
+        }
 
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -69,18 +62,12 @@ exports.createCapsule = async (req, res) => {
 // Get all capsules for a user
 exports.getAllCapsules = async (req, res) => {
     try {
-        // console.log("User ID from Token:", req.user.id); // Debugging step
         const capsules = await MyCapsule.find({ user: req.user.id }).populate('user', 'name email').exec();
-
-        // console.log("Capsules Found:", capsules); // Debugging step
-
         res.status(200).json(capsules);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
-
-
 
 // Get a single capsule by ID (ensuring ownership)
 exports.getCapsuleById = async (req, res) => {

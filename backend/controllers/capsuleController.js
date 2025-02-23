@@ -14,60 +14,69 @@ const transporter = nodemailer.createTransport({
 });
 
 // Create Capsule Controller
-const axios = require('axios');
-
 exports.createCapsule = async (req, res) => {
     try {
-        const { title, message, date } = req.body;
-        const userId = req.user.id;
+        const { title, email, date } = req.body;
+        const userId = req.user ? req.user.id : null;
+        let imageUrl = '';
 
-        if (!title || !message || !date) {
-            return res.status(400).json({ message: "Title, message, and date are required." });
+        console.log("Received Data:", req.body);
+        console.log("Files:", req.files);
+
+        // Validate required fields
+        if (!title || !email || !date) {
+            return res.status(400).json({ message: 'Title, email, and date are required' });
         }
 
-        let imageUrl = "";
+        // Handle File Upload
         if (req.files && req.files.image) {
             const image = req.files.image;
-            const uploadResult = await cloudinary.uploader.upload(image.tempFilePath, { folder: "time_capsules" });
-            imageUrl = uploadResult.secure_url;
+
+            if (!image.size) {
+                return res.status(400).json({ message: 'Empty file received' });
+            }
+
+            console.log("Temporary File Path:", image.tempFilePath);
+
+            if (!image.tempFilePath) {
+                return res.status(500).json({ message: 'Temporary file path missing' });
+            }
+
+            try {
+                // Upload to Cloudinary
+                const uploadResponse = await cloudinary.uploader.upload(image.tempFilePath, {
+                    folder: 'capsules'
+                });
+
+                imageUrl = uploadResponse.secure_url;
+                console.log("Uploaded Image URL:", imageUrl);
+            } catch (cloudinaryError) {
+                console.error("Cloudinary Upload Error:", cloudinaryError);
+                return res.status(500).json({ message: 'Error uploading image', error: cloudinaryError });
+            }
         }
 
-        console.log("🚀 Running Sentiment Analysis...");
-
-        const response = await axios.post('https://time-capsule-fastapi-1.onrender.com/analyze', {
-            title,
-            message
-        });
-
-        const result = response.data;
-
-        if (!result || result.length === 0) {
-            return res.status(500).json({ message: "No response from sentiment analysis API." });
+        // Parse and validate date
+        const parsedDate = new Date(date);
+        if (isNaN(parsedDate.getTime())) {
+            return res.status(400).json({ message: 'Invalid date format' });
         }
 
-        console.log("✅ Sentiment Analysis Result:", result);
+        // Save Capsule to DB
+        const newCapsule = new Capsule({ title, userId, email, date: parsedDate, imageUrl });
+        await newCapsule.save();
 
-        if (result.error) {
-            return res.status(500).json({ message: "Error in sentiment analysis", error: result.error });
-        }
-
-        const tags = [result.title, result.message];
-
-        // Save Capsule
-        const newCapsule = new Capsule({ user: userId, title, message, date, imageUrl, tags });
-        const savedCapsule = await newCapsule.save();
-
-        // Save Email Entry
-        const newEmail = new Email({ email: req.user.email, date });
+        // Save Email with Image URL
+        const newEmail = new Email({ email, date: parsedDate, imageUrl });
         await newEmail.save();
 
-        res.status(201).json(savedCapsule);
-
-    } catch (err) {
-        console.error("❌ Error in createCapsule:", err);
-        res.status(500).json({ message: err.message });
+        res.status(201).json({ message: 'Capsule created successfully!', imageUrl });
+    } catch (error) {
+        console.error("Error creating capsule:", error);
+        res.status(500).json({ message: 'Error creating capsule', error });
     }
 };
+
 // Cron job to send scheduled emails (checks current & past missed emails)
 cron.schedule('* * * * *', async () => {
     const now = new Date();
