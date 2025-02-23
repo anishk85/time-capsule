@@ -13,4 +13,5 @@ router.use(fileUpload({
 
 router.post('/create', authenticate, createCapsule);
 
+
 module.exports = router;

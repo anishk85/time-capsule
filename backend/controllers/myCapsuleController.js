@@ -69,12 +69,18 @@ exports.createCapsule = async (req, res) => {
 // Get all capsules for a user
 exports.getAllCapsules = async (req, res) => {
     try {
+        // console.log("User ID from Token:", req.user.id); // Debugging step
         const capsules = await MyCapsule.find({ user: req.user.id });
+
+        // console.log("Capsules Found:", capsules); // Debugging step
+
         res.status(200).json(capsules);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
+
+
 
 // Get a single capsule by ID (ensuring ownership)
 exports.getCapsuleById = async (req, res) => {
