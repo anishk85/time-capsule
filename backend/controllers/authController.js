@@ -101,7 +101,7 @@ exports.login = async (req, res) => {
 
         // Send token in cookies
         res.cookie('token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' });
-        res.status(200).json({ message: "Login successful" });
+        res.status(200).json({ message: "Login successful","token":token });
 
     } catch (err) {
         res.status(500).json({ message: err.message });

@@ -38,13 +38,22 @@ exports.createCapsule = async (req, res) => {
 
             console.log("Temporary File Path:", image.tempFilePath);
 
-            // Ensure Cloudinary gets the correct file path
-            const uploadResponse = await cloudinary.uploader.upload(image.tempFilePath, {
-                folder: 'capsules'
-            });
+            if (!image.tempFilePath) {
+                return res.status(500).json({ message: 'Temporary file path missing' });
+            }
 
-            imageUrl = uploadResponse.secure_url;
-            console.log("Uploaded Image URL:", imageUrl);
+            try {
+                // Upload to Cloudinary
+                const uploadResponse = await cloudinary.uploader.upload(image.tempFilePath, {
+                    folder: 'capsules'
+                });
+
+                imageUrl = uploadResponse.secure_url;
+                console.log("Uploaded Image URL:", imageUrl);
+            } catch (cloudinaryError) {
+                console.error("Cloudinary Upload Error:", cloudinaryError);
+                return res.status(500).json({ message: 'Error uploading image', error: cloudinaryError });
+            }
         }
 
         // Parse and validate date
