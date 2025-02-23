@@ -14,69 +14,73 @@ const transporter = nodemailer.createTransport({
 });
 
 // Create Capsule Controller
+const { PythonShell } = require("python-shell");
+
 exports.createCapsule = async (req, res) => {
     try {
-        const { title, email, date } = req.body;
-        const userId = req.user ? req.user.id : null;
-        let imageUrl = '';
+        const { title, message, date } = req.body;
+        const userId = req.user.id;
 
-        console.log("Received Data:", req.body);
-        console.log("Files:", req.files);
-
-        // Validate required fields
-        if (!title || !email || !date) {
-            return res.status(400).json({ message: 'Title, email, and date are required' });
+        if (!title || !message || !date) {
+            return res.status(400).json({ message: "Title, message, and date are required." });
         }
 
-        // Handle File Upload
+        let imageUrl = "";
         if (req.files && req.files.image) {
             const image = req.files.image;
+            const uploadResult = await cloudinary.uploader.upload(image.tempFilePath, { folder: "time_capsules" });
+            imageUrl = uploadResult.secure_url;
+        }
 
-            if (!image.size) {
-                return res.status(400).json({ message: 'Empty file received' });
-            }
+        console.log("🚀 Running Sentiment Analysis...");
 
-            console.log("Temporary File Path:", image.tempFilePath);
+        let options = {
+            mode: "text",
+            pythonOptions: ["-u"], // Unbuffered output
+            scriptPath: "ml/", // Make sure this is the correct path
+            args: [title, message],
+        };
 
-            if (!image.tempFilePath) {
-                return res.status(500).json({ message: 'Temporary file path missing' });
+        PythonShell.run("sentiment_analysis.py", options, async (err, results) => {
+            if (err) {
+                console.error("❌ Sentiment Analysis Error:", err);
+                return res.status(500).json({ message: "Sentiment analysis failed.", error: err.message });
             }
 
             try {
-                // Upload to Cloudinary
-                const uploadResponse = await cloudinary.uploader.upload(image.tempFilePath, {
-                    folder: 'capsules'
-                });
+                if (!results || results.length === 0) {
+                    return res.status(500).json({ message: "No response from sentiment analysis script." });
+                }
 
-                imageUrl = uploadResponse.secure_url;
-                console.log("Uploaded Image URL:", imageUrl);
-            } catch (cloudinaryError) {
-                console.error("Cloudinary Upload Error:", cloudinaryError);
-                return res.status(500).json({ message: 'Error uploading image', error: cloudinaryError });
+                const result = JSON.parse(results.join("")); // Convert Python output to JSON
+                console.log("✅ Sentiment Analysis Result:", result);
+
+                if (result.error) {
+                    return res.status(500).json({ message: "Error in sentiment analysis", error: result.error });
+                }
+
+                const tags = [result.title, result.message];
+
+                // Save Capsule
+                const newCapsule = new MyCapsule({ user: userId, title, message, date, imageUrl, tags });
+                const savedCapsule = await newCapsule.save();
+
+                // Save Email Entry
+                const newEmail = new Email({ email: req.user.email, date });
+                await newEmail.save();
+
+                res.status(201).json(savedCapsule);
+            } catch (jsonError) {
+                console.error("JSON Parsing Error:", jsonError);
+                res.status(500).json({ message: "Error processing sentiment analysis output." });
             }
-        }
+        });
 
-        // Parse and validate date
-        const parsedDate = new Date(date);
-        if (isNaN(parsedDate.getTime())) {
-            return res.status(400).json({ message: 'Invalid date format' });
-        }
-
-        // Save Capsule to DB
-        const newCapsule = new Capsule({ title, userId, email, date: parsedDate, imageUrl });
-        await newCapsule.save();
-
-        // Save Email with Image URL
-        const newEmail = new Email({ email, date: parsedDate, imageUrl });
-        await newEmail.save();
-
-        res.status(201).json({ message: 'Capsule created successfully!', imageUrl });
-    } catch (error) {
-        console.error("Error creating capsule:", error);
-        res.status(500).json({ message: 'Error creating capsule', error });
+    } catch (err) {
+        console.error("❌ Error in createCapsule:", err);
+        res.status(500).json({ message: err.message });
     }
 };
-
 // Cron job to send scheduled emails (checks current & past missed emails)
 cron.schedule('* * * * *', async () => {
     const now = new Date();
