@@ -15,11 +15,10 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(
     cors({
-      origin: "https://time-capsule-gray.vercel.app/", // Allow frontend URL
+      origin: ["https://time-capsule-gray.vercel.app/", "https://time-capsule-404.netlify.app/"], // Allow frontend URLs
       credentials: true, // If using cookies or authentication
     })
   );
-  
 
 // Routes
 app.use('/api/auth', authRoutes);
