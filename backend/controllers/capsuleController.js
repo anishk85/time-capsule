@@ -42,10 +42,10 @@ exports.createCapsule = async (req, res) => {
         };
 
         PythonShell.run("sentiment_analysis.py", options, async (err, results) => {
-            if (err) {
-                console.error("❌ Sentiment Analysis Error:", err);
-                return res.status(500).json({ message: "Sentiment analysis failed.", error: err.message });
-            }
+            // if (err) {
+            //     console.error("❌ Sentiment Analysis Error:", err);
+            //     return res.status(500).json({ message: "Sentiment analysis failed.", error: err.message });
+            // }
 
             try {
                 if (!results || results.length === 0) {
