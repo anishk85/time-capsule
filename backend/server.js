@@ -17,6 +17,7 @@ app.use(
     cors({
       origin: ["https://time-capsule-gray.vercel.app", "https://time-capsule-404.netlify.app"], // Allow frontend URLs
       credentials: true, // If using cookies or authentication
+      allowedHeaders: ["Content-Type", "Authorization"],
     })
   );
 
