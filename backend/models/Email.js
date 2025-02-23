@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const EmailSchema = new mongoose.Schema({
     email: String,
-    date: String,
+    date: Date,
     imageUrl: { type: String }
 });
 

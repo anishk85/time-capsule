@@ -1,10 +1,13 @@
 const MyCapsule = require("../models/myCapsule");
 const cloudinary = require("../config/cloudinary");
 const { spawn } = require("child_process");
+const Email = require("../models/Email");
 
 exports.createCapsule = async (req, res) => {
     try {
         const { title, message, date } = req.body;
+        const userEmail = req.user.email; // Assuming the user's email is available in req.user
+
         if (!title || !message || !date) {
             return res.status(400).json({ message: "Title, message, and date are required." });
         }
@@ -29,9 +32,9 @@ exports.createCapsule = async (req, res) => {
             resultData += data.toString();
         });
 
-        pythonProcess.stderr.on("data", (error) => {
-            console.error("❌ Python Error:", error.toString());
-        });
+        // pythonProcess.stderr.on("data", (error) => {
+        //     console.error("❌ Python Error:", error.toString());
+        // });
 
         pythonProcess.on("close", async (code) => {
             console.log(`✅ Python process exited with code ${code}`);
@@ -41,7 +44,7 @@ exports.createCapsule = async (req, res) => {
                 const result = JSON.parse(resultData);
 
                 if (result.error) {
-                    console.error("❌ Sentiment Analysis Error:", result.error);
+                    // console.error("❌ Sentiment Analysis Error:", result.error);
                     return res.status(500).json({ message: "Error running sentiment analysis", error: result.error });
                 }
 
@@ -52,10 +55,14 @@ exports.createCapsule = async (req, res) => {
                 const newCapsule = new MyCapsule({ title, message, date, imageUrl, tags });
                 const savedCapsule = await newCapsule.save();
 
+                // ✅ Create an entry in the Email model
+                const newEmail = new Email({ email: userEmail, date });
+                await newEmail.save();
+
                 // ✅ Send response once
                 res.status(201).json(savedCapsule);
             } catch (jsonError) {
-                console.error("❌ JSON Parse Error:", jsonError);
+                // console.error("❌ JSON Parse Error:", jsonError);
                 res.status(500).json({ message: "Error processing sentiment analysis output." });
             }
         });
@@ -102,7 +109,6 @@ exports.updateCapsule = async (req, res) => {
 };
 
 // Delete a capsule by ID
-
 exports.deleteCapsule = async (req, res) => {
     try {
         const deletedCapsule = await MyCapsule.findByIdAndDelete(req.params.id);

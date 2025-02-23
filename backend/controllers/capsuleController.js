@@ -43,12 +43,18 @@ exports.createCapsule = async (req, res) => {
             console.log("Uploaded Image URL:", imageUrl);
         }
 
+        // Parse the date string to a Date object
+        const parsedDate = new Date(date);
+        if (isNaN(parsedDate.getTime())) {
+            return res.status(400).json({ message: 'Invalid date format' });
+        }
+
         // Save capsule to DB
-        const newCapsule = new Capsule({ title, email, date, imageUrl });
+        const newCapsule = new Capsule({ title, email, date: parsedDate, imageUrl });
         await newCapsule.save();
 
         // Save email with image URL
-        const newEmail = new Email({ email, date, imageUrl });
+        const newEmail = new Email({ email, date: parsedDate, imageUrl });
         await newEmail.save();
 
         res.status(201).json({ message: 'Capsule created successfully!', imageUrl });
@@ -61,11 +67,11 @@ exports.createCapsule = async (req, res) => {
 // Cron job to send scheduled emails (checks current & past missed emails)
 cron.schedule('* * * * *', async () => {
     const now = new Date();
-    const formattedTime = now.toTimeString().split(' ')[0].slice(0, 5);
+    const formattedTime = now.toISOString().slice(0, 16); // "YYYY-MM-DDTHH:MM"
 
     console.log('Checking emails for:', formattedTime);
 
-    const emails = await Email.find({ date: { $lte: formattedTime } }); // Fetch past-due emails too
+    const emails = await Email.find({ date: { $lte: now } }); // Fetch past-due emails too
 
     if (emails.length === 0) {
         console.log('No scheduled emails for this time.');
