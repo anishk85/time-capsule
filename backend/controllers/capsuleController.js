@@ -16,44 +16,48 @@ const transporter = nodemailer.createTransport({
 // Create Capsule Controller
 exports.createCapsule = async (req, res) => {
     try {
-        const { email, date, title } = req.body;
+        const { title, email, date } = req.body;
+        const userId = req.user ? req.user.id : null;
         let imageUrl = '';
 
         console.log("Received Data:", req.body);
+        console.log("Files:", req.files);
 
+        // Validate required fields
+        if (!title || !email || !date) {
+            return res.status(400).json({ message: 'Title, email, and date are required' });
+        }
+
+        // Handle File Upload
         if (req.files && req.files.image) {
             const image = req.files.image;
-            
-            // Upload image to Cloudinary
-            const uploadResponse = await new Promise((resolve, reject) => {
-                cloudinary.uploader.upload_stream(
-                    { folder: 'capsules' },
-                    (error, result) => {
-                        if (error) {
-                            console.error("Cloudinary Upload Error:", error);
-                            reject(error);
-                        } else {
-                            resolve(result);
-                        }
-                    }
-                ).end(image.data);
+
+            if (!image.size) {
+                return res.status(400).json({ message: 'Empty file received' });
+            }
+
+            console.log("Temporary File Path:", image.tempFilePath);
+
+            // Ensure Cloudinary gets the correct file path
+            const uploadResponse = await cloudinary.uploader.upload(image.tempFilePath, {
+                folder: 'capsules'
             });
 
             imageUrl = uploadResponse.secure_url;
             console.log("Uploaded Image URL:", imageUrl);
         }
 
-        // Parse the date string to a Date object
+        // Parse and validate date
         const parsedDate = new Date(date);
         if (isNaN(parsedDate.getTime())) {
             return res.status(400).json({ message: 'Invalid date format' });
         }
 
-        // Save capsule to DB
-        const newCapsule = new Capsule({ title, email, date: parsedDate, imageUrl });
+        // Save Capsule to DB
+        const newCapsule = new Capsule({ title, userId, email, date: parsedDate, imageUrl });
         await newCapsule.save();
 
-        // Save email with image URL
+        // Save Email with Image URL
         const newEmail = new Email({ email, date: parsedDate, imageUrl });
         await newEmail.save();
 

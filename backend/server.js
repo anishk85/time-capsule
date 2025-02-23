@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('./config/db');
 const cookieParser = require('cookie-parser');
+const cors = require('cors');
 
 const authRoutes = require('./routes/authRoutes');
 const capsuleRoutes = require('./routes/capsuleRoutes');
@@ -12,6 +13,13 @@ const app = express();
 
 app.use(express.json());
 app.use(cookieParser());
+// app.use(
+//     cors({
+//       origin: "http://localhost:3000", // Allow frontend URL
+//       credentials: true, // If using cookies or authentication
+//     })
+//   );
+  
 
 // Routes
 app.use('/api/auth', authRoutes);
