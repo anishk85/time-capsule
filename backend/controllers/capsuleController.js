@@ -17,7 +17,7 @@ const transporter = nodemailer.createTransport({
 exports.createCapsule = async (req, res) => {
     try {
         const { title, email, date } = req.body;
-        const userId = req.user ? req.user.id : null;
+        const userId = req.user ? req.user.id : null;   
         let imageUrl = '';
 
         console.log("Received Data:", req.body);
