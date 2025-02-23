@@ -14,7 +14,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // Create Capsule Controller
-const { PythonShell } = require("python-shell");
+const axios = require('axios');
 
 exports.createCapsule = async (req, res) => {
     try {
@@ -34,47 +34,34 @@ exports.createCapsule = async (req, res) => {
 
         console.log("🚀 Running Sentiment Analysis...");
 
-        let options = {
-            mode: "text",
-            pythonOptions: ["-u"], // Unbuffered output
-            scriptPath: "ml/", // Make sure this is the correct path
-            args: [title, message],
-        };
-
-        PythonShell.run("sentiment_analysis.py", options, async (err, results) => {
-            // if (err) {
-            //     console.error("❌ Sentiment Analysis Error:", err);
-            //     return res.status(500).json({ message: "Sentiment analysis failed.", error: err.message });
-            // }
-
-            try {
-                if (!results || results.length === 0) {
-                    return res.status(500).json({ message: "No response from sentiment analysis script." });
-                }
-
-                const result = JSON.parse(results.join("")); // Convert Python output to JSON
-                console.log("✅ Sentiment Analysis Result:", result);
-
-                if (result.error) {
-                    return res.status(500).json({ message: "Error in sentiment analysis", error: result.error });
-                }
-
-                const tags = [result.title, result.message];
-
-                // Save Capsule
-                const newCapsule = new MyCapsule({ user: userId, title, message, date, imageUrl, tags });
-                const savedCapsule = await newCapsule.save();
-
-                // Save Email Entry
-                const newEmail = new Email({ email: req.user.email, date });
-                await newEmail.save();
-
-                res.status(201).json(savedCapsule);
-            } catch (jsonError) {
-                console.error("JSON Parsing Error:", jsonError);
-                res.status(500).json({ message: "Error processing sentiment analysis output." });
-            }
+        const response = await axios.post('https://time-capsule-fastapi-1.onrender.com/analyze', {
+            title,
+            message
         });
+
+        const result = response.data;
+
+        if (!result || result.length === 0) {
+            return res.status(500).json({ message: "No response from sentiment analysis API." });
+        }
+
+        console.log("✅ Sentiment Analysis Result:", result);
+
+        if (result.error) {
+            return res.status(500).json({ message: "Error in sentiment analysis", error: result.error });
+        }
+
+        const tags = [result.title, result.message];
+
+        // Save Capsule
+        const newCapsule = new Capsule({ user: userId, title, message, date, imageUrl, tags });
+        const savedCapsule = await newCapsule.save();
+
+        // Save Email Entry
+        const newEmail = new Email({ email: req.user.email, date });
+        await newEmail.save();
+
+        res.status(201).json(savedCapsule);
 
     } catch (err) {
         console.error("❌ Error in createCapsule:", err);
