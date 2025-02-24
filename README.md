@@ -3,7 +3,8 @@
 ## 📌 **Overview**  
 The **Digital Time Capsule** is an innovative web platform that allows users to store messages, media, and memories, which will be revealed at a **future date**. Developed during **KrackHack 2025**, this project focuses on **security, AI/ML-powered sentiment analysis, and a seamless user experience
 - **Live Website:** [Time Capsule](https://time-capsule-404.netlify.app/)
-**.
+- **Link To Other 2 Repos:**[Time Capsule](https://github.com/anishk85/time-capsule-fastapi.git),(https://github.com/HarryOhm33/TimeCapsule.git)
+
 
 ---
 
